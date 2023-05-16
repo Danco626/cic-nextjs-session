@@ -1,27 +1,41 @@
-import { handleAuth, handleCallback, handleLogin } from "@auth0/nextjs-auth0";
-//import getAuth0 from '../../../utils/customsessionstore';
+import { handleAuth, handleCallback, handleLogin, getSession } from "@auth0/nextjs-auth0";
 
-const afterCallback = (req, res, session, state) => {
-  console.log(session);
+/**
+ * Fires when authentication completes, before redirecting to the originating URL (/).
+ * When the user first signs in, we use the default session object containing the custom API accesstoken.
+ * This function fires again after requesting the MFA access token. 
+ * We check for the enroll scope to determine it's the MFA API access token and adding it to the original session. * 
+ */
+const afterCallback = async (req, res, session, state) => {  
+  //get previous session. Null on initial login
+  const ogSession = await getSession(req, res)  
+  
+//if offline_access, assume this is the custom API access token (initial auth)
+// and save the tokens to apiAccessToken object 
+  // if (session.accessTokenScope.includes("offline_access")) {
+  //   session.apiAcessToken = {
+  //     accessToken: session.accessToken,
+  //     accessTokenExpiresAt: session.accessTokenExpiresAt,
+  //     refresh: session.refreshToken,
+  //   };
+  // }
 
-  if (session.accessTokenScope.includes("offline_access")) {
-    session.user.apiAcessToken = {
-      accessToken: session.accessToken,
-      accessTokenExpiresAt: session.accessTokenExpiresAt,
-      refresh: session.refreshToken,
-    };
-  }
-
+  //if MFA token, add to old session and continue using
   if (session.accessTokenScope.includes("enroll")) {
-    session.user.mfaAccessToken = {
+    ogSession.mfaAccessToken = {
       accessToken: session.accessToken,
+      accessTokenScope: session.accessTokenScope,
       accessTokenExpiresAt: session.accessTokenExpiresAt,
     };
   }
-  console.log("in callback");
-  return session;
+
+  return ogSession ? ogSession : session;    
 };
 
+
+/**
+ * Determine audience/scope based on mfa query param. 
+ */
 export default handleAuth({
   login: async (req, res) => {
     try {
